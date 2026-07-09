@@ -26,6 +26,33 @@ public class StageSurfaceRotator : MonoBehaviour
     private readonly List<GravityPlayerController> players = new();
     private readonly List<PushOnlyBox> pushOnlyBoxes = new();
     private readonly List<Transform> autoAttachedStageObjects = new();
+    private bool externalInputActive;
+
+    public bool IsRotating => rotationCoroutine != null;
+    public Transform StageRoot => stageRoot;
+
+    public void SetExternalInputActive(bool isActive)
+    {
+        externalInputActive = isActive;
+    }
+
+    public bool TryRotateSurfaceToFloor(Vector3 surfaceNormal)
+    {
+        if (rotationCoroutine != null || surfaceNormal.sqrMagnitude <= 0.001f)
+        {
+            return false;
+        }
+
+        Quaternion delta = Quaternion.FromToRotation(surfaceNormal.normalized, Vector3.up);
+        if (Quaternion.Angle(Quaternion.identity, delta) <= 0.1f)
+        {
+            return true;
+        }
+
+        Vector3 nextGravityDirection = -(delta * surfaceNormal.normalized);
+        rotationCoroutine = StartCoroutine(RotateStage(delta, nextGravityDirection));
+        return true;
+    }
 
     private void FixedUpdate()
     {
@@ -59,7 +86,7 @@ public class StageSurfaceRotator : MonoBehaviour
 
     private void Update()
     {
-        if (rotationCoroutine != null || Mouse.current == null || rayCamera == null || !Mouse.current.leftButton.wasPressedThisFrame)
+        if (externalInputActive || rotationCoroutine != null || Mouse.current == null || rayCamera == null || !Mouse.current.leftButton.wasPressedThisFrame)
         {
             return;
         }
@@ -72,7 +99,7 @@ public class StageSurfaceRotator : MonoBehaviour
             return;
         }
 
-        RotateSurfaceToFloor(hit.normal);
+        TryRotateSurfaceToFloor(hit.normal);
     }
 
     private bool IsStageSurface(Transform hitTransform)
@@ -99,24 +126,6 @@ public class StageSurfaceRotator : MonoBehaviour
         }
 
         return false;
-    }
-
-    private void RotateSurfaceToFloor(Vector3 surfaceNormal)
-    {
-        Quaternion delta = Quaternion.FromToRotation(surfaceNormal.normalized, Vector3.up);
-
-        if (Quaternion.Angle(Quaternion.identity, delta) <= 0.1f)
-        {
-            return;
-        }
-
-        if (rotationCoroutine != null)
-        {
-            StopCoroutine(rotationCoroutine);
-        }
-
-        Vector3 nextGravityDirection = -(delta * surfaceNormal.normalized);
-        rotationCoroutine = StartCoroutine(RotateStage(delta, nextGravityDirection));
     }
 
     private IEnumerator RotateStage(Quaternion delta, Vector3 nextGravityDirection)
